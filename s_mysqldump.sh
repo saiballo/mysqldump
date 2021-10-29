@@ -121,7 +121,7 @@ LOGS_REC='y'
 
 # directory where to store log files. if empty value, it uses backup's directory (no trailing slash).
 # directory dove salvare i LOG. Se lasciata vuota sarà la stessa dei backup (senza slash finale).
-LOGS_DIR='/home/saibal/s_shell_scripts'
+LOGS_DIR='/var/local/custom_scripts_log'
 
 # log folder name. check r/w permissions for the user
 # cartella dei LOG. controllare i permessi di scrittura sulla cartella
@@ -129,7 +129,7 @@ LOGS_FOLDER='[log]'
 
 # log filename
 # nome del file di LOG
-LOGS_FILENAME='s_mysqldump.log'
+LOGS_FILENAME='mysqldump.log'
 
 # max size of the log file (in KB)
 # dimensione massima del file di log (in KB)
