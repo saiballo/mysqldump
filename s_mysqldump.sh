@@ -1,31 +1,29 @@
 #!/bin/bash
 #
-# Saibal MySQL Backup Script
+# Filename: s_mysqldump.sh V 3.0
 #
-# VER. 2.1 - http://www.lorenzone.it
-# Copyright (c) 2019 saibal@lorenzone.it
+# Created: 21/10/2021 (07:52:49)
+# Created by: Lorenzo Saibal Forti <lorenzo.forti@gmail.com>
 #
-# BY IDEA OF DAVIDE BUZZI AND MR. GLAUCO! Thank you guys
+# Last Updated: 24/10/2021 (13:27:13)
+# Updated by: Lorenzo Saibal Forti <lorenzo.forti@gmail.com>
+#
+# Comments: bash 4 required
+#
+# Copyleft: 2021 - Tutti i diritti riservati
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
 # (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-#
 #=====================================================================
 
 #=====================================================================
 # CHANGELOG
 #=====================================================================
+# Versione 3.0
+# Code refactoring
+
 # Versione 2.1
 # Code refactoring
 
@@ -44,7 +42,6 @@
 
 # Versione 1.0
 # Aggiunto invio log per email
-# Aggiunto trasferimento FTP
 # Controllo generale del codice
 #
 # Versione 0.5
@@ -70,18 +67,21 @@
 DBHOST='localhost'
 
 # db username
-USERNAME='root'
+USERNAME=''
 
 # db password
 PASSWORD=''
 
+# login path
+MYSQL_LOGIN_PATH='my_personal_sqldump'
+
 # a space separated list of db to dump
 # lista dei database da salvare (separati da spazio)
-DATABASES='mysql phpmyadmin'
+DATABASES='mysql my_db my_other_db'
 
 # working directory where to store backup folders (no trailing slash). check r/w permissions for the user
 # directory dove salvare i backup (senza slash finale). controllare i permessi di scrittura sulla cartella
-OUT_DIR='/home/saibal/backupdb'
+OUT_DIR='/var/local/backup'
 
 # data format (it or en)
 # formato data (it oppure en)
@@ -101,7 +101,7 @@ DAILY_FOLDER='daily'
 
 # daily backup? (y or n)
 # backup mensile? (y oppure n)
-MONTHLY_BACKUP='n'
+MONTHLY_BACKUP='y'
 
 # "monthly backup" folder name. check r/w permissions for the user
 # cartella backup mensili. controllare i permessi di scrittura sulla cartella
@@ -121,15 +121,15 @@ LOGS_REC='y'
 
 # directory where to store log files. if empty value, it uses backup's directory (no trailing slash).
 # directory dove salvare i LOG. Se lasciata vuota sarà la stessa dei backup (senza slash finale).
-LOGS_DIR=''
+LOGS_DIR='/home/saibal/s_shell_scripts'
 
 # log folder name. check r/w permissions for the user
 # cartella dei LOG. controllare i permessi di scrittura sulla cartella
-LOGS_FOLDER='dumplog'
+LOGS_FOLDER='[log]'
 
 # log filename
 # nome del file di LOG
-LOGS_FILENAME='dump.log'
+LOGS_FILENAME='s_mysqldump.log'
 
 # max size of the log file (in KB)
 # dimensione massima del file di log (in KB)
@@ -141,7 +141,7 @@ LOGS_MAXSIZE='900'
 #=====================================================================
 # enable email service as notification? (y or n)
 # abilitare invio email con risultato delle operazioni? (y oppure n)
-EMAIL_SEND='n'
+EMAIL_SEND='y'
 
 # enable email only for errors? (y or n)
 # inviare email solo in caso di errore? (y oppure n)
@@ -153,87 +153,70 @@ EMAIL_SERVICE='ssmtp'
 
 # email recipient
 # destinatario email
-EMAIL_RECIVER='email@gmail.com'
+EMAIL_RECIVER='myemail@gmail.com'
 
 # email subject
 # soggetto email
-EMAIL_SUBJECT='MySQL Backup - resoconto'
-
-#=====================================================================
-# Ftp configuration
-# Configurazione ftp
-#=====================================================================
-# enable ftp transfer for backups? (y or n)
-# abilitare trasferimento FTP dei backup? (y oppure n)
-FTP_TRANSF='n'
-
-# transfer daily backups or last backups? (d or l)
-# trasferire backup giornalieri o solo i last? (d oppure l)
-FTP_FILES='d'
-
-# ftp host
-# indirizzo FTP
-FTP_HOST=''
-
-# ftp username
-# username FTP
-FTP_USER=''
-
-# ftp password
-# password FTP
-FTP_PASSWORD=''
-
-# working directory for ftp space (no trailing slash).
-# directory in cui inserire i file (senza slash finale).
-FTP_REMOTEDIR=''
-
-# log file for ftp commands. saved in same directory of common logs configured above
-# file temp. per il log dei comandi di console FTP. Il risultato dell'operazione viene invece registrato sul file generale
-FTP_LOGS_FILENAME='ftp.log'
+EMAIL_SUBJECT='MySQL Backup - Report'
 
 #=====================================================================
 # Messages configuration
 # Configurazione messaggi
 #=====================================================================
 # result messages writed in log files. NOMEDB is a placeholder.
-# messaggi di ritorno per il backup (NOMEDB è un placeholder. se possibile non cancellare)
-BACKUP_OK="BACKUP RIUSCITO! | $HOSTNAME | Tutti i backup effettuati con successo"
-BACKUP_KO="ERRORE BACKUP!   | $HOSTNAME | I seguenti database: NOMEDB non sono stati copiati e/o compressi"
-CONNEC_KO="ERRORE MYSQL!    | $HOSTNAME | Impossibile connettersi ai seguenti database: NOMEDB"
-SEMAIL_KO="ERRORE INVIO!    | $HOSTNAME | Impossibile trovare il servizio $EMAIL_SERVICE per inviare messaggi"
-FTPPUT_OK="FTP RIUSCITO!    | $HOSTNAME | Tutti i file sono stati trasferiti con successo sul server $FTP_HOST"
-FTPPUT_KO="ERRORE FTP!      | $HOSTNAME | Errore procedura FTP. Errore: FTPERR"
+# messaggi di ritorno per il backup (IP e NOMEDB sono placeholder)
+BACKUP_OK="BACKUP RIUSCITO! | IP | Tutti i backup effettuati con successo"
+BACKUP_KO="ERRORE BACKUP!   | IP | I seguenti database: NOMEDB non sono stati copiati e/o compressi"
+CONNEC_KO="ERRORE MYSQL!    | IP | Impossibile connettersi ai seguenti database: NOMEDB"
+DELETE_KO="ERRORE RIMOZIONE!| IP | Impossibile rimuovere il file SQL per NOMEDB"
+SEMAIL_KO="ERRORE INVIO!    | IP | Impossibile trovare il servizio $EMAIL_SERVICE per inviare messaggi"
 
 ########################################
 # NOTHING TO EDIT
 # NIENTE DA MODIFICARE
 ########################################
 
+# di default hostname utilizza il trattino come separatore. cambio con il punto
+IP=$(hostname -I | cut -d ' ' -f1)
+
+BACKUP_OK=${BACKUP_OK//IP/$IP}
+BACKUP_KO=${BACKUP_KO//IP/$IP}
+CONNEC_KO=${CONNEC_KO//IP/$IP}
+DELETE_KO=${DELETE_KO//IP/$IP}
+SEMAIL_KO=${SEMAIL_KO//IP/$IP}
+
 #=========================================
 # FUNZIONI VARIE
 #=========================================
-# funzione per creare una cartella
+# crea una cartella. $1 è il nome della cartella
 create_folder() {
 
 	# controllo l'esistenza della cartella
 	if [ ! -d "$1" ]
 	then
-		mkdir -p "$1" > /dev/null 2>&1
-	fi
 
-	# se l'operazione non è andata a buon fine
-	if [ "$?" -eq 1 ]
-	then
-		echo "Errore nel creare la cartella \"$1\". Controllare che non esista un file/directory con lo stesso nome"
-		exit
+		if ! mkdir -p "$1" > /dev/null 2>&1
+		then
+
+			echo "Errore nel creare la cartella \"$1\". Controllare che non esista un file/directory con lo stesso nome"
+			exit
+		fi
 	fi
 }
 
-# funzione per check connessione al database
+# check connessione al db. $1 è il nome del db
 check_connection() {
 
 	# testo la connessione
-	mysql --user=$USERNAME --password=$PASSWORD --host=$DBHOST "$DB" -e STATUS > /dev/null 2>&1
+	if [ ! -z "$MYSQL_LOGIN_PATH" ]
+	then
+
+		mysql --login-path="$MYSQL_LOGIN_PATH" "$1" -e STATUS > /dev/null 2>&1
+
+	else
+
+		mysql --user="$USERNAME" --password="$PASSWORD" --host="$DBHOST" "$1" -e STATUS > /dev/null 2>&1
+	fi
 
 	# id errore
 	CONN_ERROR=$?
@@ -241,11 +224,19 @@ check_connection() {
 	return $CONN_ERROR
 }
 
-# funzione per effettuare il dump al db
+# effettua il dump al db. $1 è il nome del db. $2 è il path con nome del file come output
 do_mysqldump() {
 
 	# dump del database
-	mysqldump --user=$USERNAME --password=$PASSWORD --host=$DBHOST "$DB" > "$1"
+	if [ ! -z "$MYSQL_LOGIN_PATH" ]
+	then
+
+		mysqldump --login-path="$MYSQL_LOGIN_PATH" "$1" > "$2"
+	
+	else
+
+		mysqldump --user="$USERNAME" --password="$PASSWORD" --host="$DBHOST" "$1" > "$2"	
+	fi
 
 	# registro il risultato dell'operazione mysqldump.
 	DUMP_ERROR=$?
@@ -253,25 +244,26 @@ do_mysqldump() {
 	return $DUMP_ERROR
 }
 
-# funzione per effettuare la compressione del database
-do_compression() {
+# effettua la compressione del file o folder passato come parametro $1. $2 è il nome output del file. in questo è necessario cancellare manualmente l'input
+# gzip è più adatto ai singoli file sql. tar per default mantiene la struttura delle directory e non rimuove il file originario (solo con param --remove-files)
+create_archive() {
 
 	# comprimo il tutto con gzip
-	gzip -f "$1"
+	gzip -f -c "$1" > "$2"
 
-	#risultato operazione gzip
-	GZIP_ERROR=$?
+	#risultato operazione
+	ARCHIVE_ERROR=$?
 
-	return $GZIP_ERROR
+	return $ARCHIVE_ERROR
 }
 
 # funzione per check invio email
-check_email() {
+check_email_service() {
 
-	if [ "$EMAIL_SEND" = "y" ]
+	if [ "${EMAIL_SEND,,}" = 'y' ]
 	then
 
-		CHECK_MAIL=$(command -v $EMAIL_SERVICE)
+		CHECK_MAIL=$(command -v "$EMAIL_SERVICE")
 
 		if [ -n "$CHECK_MAIL" ]
 		then
@@ -294,7 +286,7 @@ check_email() {
 send_mail() {
 
 	# alternativa
-	echo -e "From: sh-script\nSubject: $3\n\n$4" | $1 "$2"
+	echo -e "From: sh-script\nSubject: $3\n\n$4" | "$1" "$2"
 }
 
 #=========================================
@@ -302,6 +294,9 @@ send_mail() {
 #=========================================
 # path principali del sistema
 PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/mysql/bin:/usr/sbin
+
+# estensione per il file compresso. senza punto iniziale
+ARCHIVE_EXT='gz'
 
 # data di oggi
 TODAY_DATE=$(date +%d/%m/%Y)
@@ -322,47 +317,36 @@ MON=$(date +%m)
 MONYEA=$(date +%m_%Y)
 
 # date esecuzione backup nei due formati
-DATEIT=$(date +\[%d-%m-%Y_%H-%M-%S\])
-DATEEN=$(date +\[%Y-%m-%d_%H-%M-%S\])
+DATEIT=$(date +\[%d-%m-%Y_%H:%M:%S\])
+DATEEN=$(date +\[%Y-%m-%d_%H:%M:%S\])
 
 # formato data per i log
 LOGDATE="$(date +%Y/%m/%d) - $(date +%T)"
 
 # contatori di errori
-ERROR_CONN_TODB=0
+ERROR_DB_CONN=0
+ERROR_REMOVE_DUMP=0
 ERROR_COUNT_SINGLE=0
-ERROR_COUNT_PERIODIC=0
+ERROR_COPY=0
 ERROR_NOMAIL_SERVICE=0
-ERROR_FTP_TRANSFER=0
-
-# se non esiste la directory OUTDIR la creo
-create_folder "$OUT_DIR"
 
 # se non esiste la directory LAST la creo
 create_folder "$OUT_DIR/$LAST_FOLDER"
 
 # se non esiste la directory DAILY la creo
-if [ "$DAILY_BACKUP" = "y" ]
+if [ "$DAILY_BACKUP" = 'y' ]
 then
 	create_folder "$OUT_DIR/$DAILY_FOLDER"
 fi
 
 # se non esiste la directory MONTHLY la creo
-if [ "$MONTHLY_BACKUP" = "y" ]
+if [ "${MONTHLY_BACKUP,,}" = 'y' ]
 then
 	create_folder "$OUT_DIR/$MONTHLY_FOLDER"
 fi
 
-# codice per convertire in LOWERCASE le variabili inserite in questo array
-TO_LOWER=("DATE_FORMAT" "MONTHLY_BACKUP" "LOGS_REC" "EMAIL_SEND" "EMAIL_ONLYERRORS" "FTP_TRANSF" "FTP_FILES")
-
-for INPUT in "${TO_LOWER[@]}"
-do
-	eval "$INPUT"="$(echo ${!INPUT} | tr '[:upper:]' '[:lower:]')"
-done
-
 # scelgo la formattazione della data
-if [ "$DATE_FORMAT" = "it" ]
+if [ "${DATE_FORMAT,,}" = 'it' ]
 then
 	DATE="$DATEIT"
 else
@@ -370,19 +354,17 @@ else
 fi
 
 # se sono abilitati i logs e non esiste la directory LOGS la creo e calcolo la dimensione massima del file
-if [ "$LOGS_REC" = "y" ]
+if [ "${LOGS_REC,,}" = 'y' ]
 then
 
-	# se la variabile LOGS_DIR non è vuota la imposto altrimenti inserisco la cartella dentro la directory di default
-	if [ -n "$LOGS_DIR" ]
+	# se la variabile LOGS_DIR è vuota inserisco la cartella dentro la directory di default
+	if [ -z "$LOGS_DIR" ]
 	then
-		LOGS_DIR="$LOGS_DIR"
-	else
 		LOGS_DIR="$OUT_DIR"
 	fi
 
 	# creo la directory log
-	create_folder  "$LOGS_DIR/$LOGS_FOLDER"
+	create_folder "$LOGS_DIR/$LOGS_FOLDER"
 
 	# creo il file di log
 	if [ ! -f "$LOGS_DIR/$LOGS_FOLDER/$LOGS_FILENAME" ]
@@ -390,16 +372,10 @@ then
 		echo -ne > "$LOGS_DIR/$LOGS_FOLDER/$LOGS_FILENAME"
 	fi
 
-	# cancello il file log FTP se viene disabilitata la funzione (ma la funzione log generale deve cmq essere attiva!)
-	if [ "$FTP_TRANSF" != "y" ]
-	then
-		rm -f "$LOGS_DIR/$FTP_LOGS_FILENAME"
-	fi
-
 	# converto i KB in BYTES dopo aver controllato che la VAR non sia vuota
 	if [ -n "$LOGS_MAXSIZE" ]
 	then
-		LOGS_MAXBYTES=$(( $LOGS_MAXSIZE*1000 ))
+		LOGS_MAXBYTES=$(( LOGS_MAXSIZE*1000 ))
 	else
 		LOGS_MAXBYTES=$(( 1000*1000 ))
 	fi
@@ -410,16 +386,16 @@ fi
 #=========================================
 
 # Controllo l'invio delle email. ritorna $MAIL_RESULT
-check_email
+check_email_service
 
 # inizio il ciclo sui database
-for DB in $DATABASES
+for db in $DATABASES
 do
 
 	# funzione per testare la connessione al database. ritorna $CONN_ERROR
-	check_connection
+	check_connection "$db"
 
-	if [ $CONN_ERROR -eq 0 ]
+	if [ "$CONN_ERROR" -eq 0 ]
 	then
 
 		########################################
@@ -427,98 +403,109 @@ do
 		########################################
 
 		# rimuovo i vecchi backup
-		rm -f "$OUT_DIR/$LAST_FOLDER/${DB}__"*"__last.gz"
+		rm -f "$OUT_DIR/$LAST_FOLDER/${db}__[last]"*".${ARCHIVE_EXT}"
 
-		# creo il nome del file da dumpare e comprimere in .gz
-		OUTFILE="$OUT_DIR/$LAST_FOLDER/${DB}__${DATE}.sql"
+		# nome file sql
+		OUTFILE_DUMP="$OUT_DIR/$LAST_FOLDER/${db}__${DATE}.sql"
 
-		# ci sbatto dentro il dump. ritorna $DUMP_ERROR
-		do_mysqldump "$OUTFILE"
+		# nome file gzip
+		LASTFILE_ARCHIVE="$OUT_DIR/$LAST_FOLDER/${db}__[last]__${DATE}.${ARCHIVE_EXT}"
 
-		# comprimo il file. ritorna $GZIP_ERROR
-		do_compression "$OUTFILE"
+		# faccio il dump e lo sbatto nel file sql. ritorna $DUMP_ERROR
+		do_mysqldump "$db" "$OUTFILE_DUMP"
+
+		# creo lo gzip rinominandolo
+		create_archive "$OUTFILE_DUMP" "$LASTFILE_ARCHIVE"
 
 		# se la compressione è ok copio l'ultimo gzip dentro la dir DAILY e MONTHLY
-		if [ $GZIP_ERROR -eq 0 ]
+		if [ "$ARCHIVE_ERROR" -eq 0 ]
 		then
 
 			########################################
 			# BACKUP GIORNALIERO
 			########################################
-			if [ "$DAILY_BACKUP" = "y" ]
+			if [ "${DAILY_BACKUP,,}" = 'y' ]
 			then
 
 				# rimuovo i vecchi backup
-				rm -f "$OUT_DIR/$DAILY_FOLDER/[${NDAY}]__${DB}__"*"__daily.gz"
+				rm -f "$OUT_DIR/$DAILY_FOLDER/${db}__[day-${NDAY}]"*".${ARCHIVE_EXT}"
 
 				# uso la funzione cp per copiare l'ultimo back dalla cartella "last" a "daily"
-				cp "$OUTFILE.gz" "$OUT_DIR/$DAILY_FOLDER/[${NDAY}]__${DB}__${DATE}.sql__daily.gz"
+				cp "$LASTFILE_ARCHIVE" "$OUT_DIR/$DAILY_FOLDER/${db}__[day-${NDAY}]__${DATE}.${ARCHIVE_EXT}"
 
 				# se le copia ha generato errori e i log sono attivi
-				if [ $? -gt "0" ] && [ "$LOGS_REC" = "y" ]
+				if [ $? -ne 0 ] && [ "${LOGS_REC,,}" = 'y' ]
 				then
 
 					# aumento il contatore
-					ERROR_COUNT_PERIODIC=$(( ERROR_COUNT_PERIODIC + 1 ))
+					ERROR_COPY=$(( ERROR_COPY + 1 ))
 
 					# registro i DB nella stessa variabile
-					ERROR_DB+="[${DB}__daily] "
+					ERROR_RESULT+="[${db}__day-${NDAY}] "
 				fi
 			fi
 
 			########################################
 			# BACKUP MENSILE
 			########################################
-			if [ "$MONTHLY_BACKUP" = "y" ] && [ "$DMON" = "$MONTHLY_BKDAY" ]
+			if [ "${MONTHLY_BACKUP,,}" = 'y' ] && [ "$DMON" = "$MONTHLY_BKDAY" ]
 			then
 
 				# rimuovo i vecchi backup
-				rm -f "$OUT_DIR/$MONTHLY_FOLDER/[${MON}_"*"]__${DB}"*"__monthly.gz"
+				rm -f "$OUT_DIR/$MONTHLY_FOLDER/${db}__[month-${MON}_"*".${ARCHIVE_EXT}"
 
 				# uso la funzione cp per copiare l'ultimo back dalla cartella "last" a "daily"
-				cp "$OUTFILE.gz" "$OUT_DIR/$MONTHLY_FOLDER/[${MONYEA}]__${DB}__${DATE}.sql__monthly.gz"
+				cp "$LASTFILE_ARCHIVE" "$OUT_DIR/$MONTHLY_FOLDER/${db}__[month-${MONYEA}]__${DATE}.${ARCHIVE_EXT}"
 
 				# se le copia ha generato errori e i log sono attivi
-				if [ $? -gt 0 ] && [ "$LOGS_REC" = 'y' ]
+				if [ $? -ne 0 ] && [ "${LOGS_REC,,}" = 'y' ]
 				then
 
 					# aumento il contatore
-					ERROR_COUNT_PERIODIC=$(( ERROR_COUNT_PERIODIC + 1 ))
+					ERROR_COPY=$(( ERROR_COPY + 1 ))
 
 					# registro i DB nella stessa variabile
-					ERROR_DB+="[${DB}__monthly] "
+					ERROR_RESULT+="[${db}__month-${MONYEA}] "
 				fi
 			fi
 		fi
 
-		# rinomino il vecchio file nella cartella "last" con il suffisso "__last"
-		mv "$OUTFILE.gz" "${OUTFILE}__last.gz"
-
-		# uso le VAR di ritorno delle funzioni per gestire gli errori nei log se abilitati
-		if [ "$LOGS_REC" = "y" ]
+		# rimuovo il file dump originario
+		if ! rm "$OUTFILE_DUMP"
 		then
 
-			if [ $DUMP_ERROR -gt 0 ] || [ $GZIP_ERROR -gt 0 ]
+			# aumento il contatore
+			ERROR_REMOVE_DUMP=$(( ERROR_REMOVE_DUMP + 1 ))
+
+			# registro i DB nella stessa variabile
+			ERROR_RESULT+="[${db}__last.sql] "
+		fi
+
+		# uso le VAR di ritorno delle funzioni per gestire gli errori nei log se abilitati
+		if [ "${LOGS_REC,,}" = 'y' ]
+		then
+
+			if [ "$DUMP_ERROR" -ne 0 ] || [ "$ARCHIVE_ERROR" -ne 0 ]
 			then
 
 				# aumento il contatore
 				ERROR_COUNT_SINGLE=$(( ERROR_COUNT_SINGLE + 1 ))
 
 				# registro i DB nella stessa variabile
-				ERROR_DB+="[${DB}__last] "
+				ERROR_RESULT+="[${db}__last] "
 			fi
 		fi
 
 	else
 
-		if [ "$LOGS_REC" = 'y' ] || [ $MAIL_RESULT -eq 1 ]
+		if [ "${LOGS_REC,,}" = 'y' ] || [ "$MAIL_RESULT" -eq 1 ]
 		then
 
 			# aumento il contatore
-			ERROR_CONN_TODB=$(( ERROR_CONN_TODB + 1 ))
+			ERROR_DB_CONN=$(( ERROR_DB_CONN + 1 ))
 
 			# registro i DB nella stessa variabile
-			ERROR_CONN_DB+="[${DB}] "
+			ERROR_CONN_DB+="[${db}] "
 		fi
 	fi
 
@@ -527,14 +514,14 @@ done
 #=========================================
 # LOGS SECTION!!!
 #=========================================
-if [ "$LOGS_REC" = "y" ]
+if [ "${LOGS_REC,,}" = 'y' ]
 then
 
 	echo ======================================================================
 	echo Saibal MySQL Backup
 	echo
 	echo Start time: "$TODAY_TIME" - "$TODAY_DATE"
-	echo Backup of MySQL Databases \(powered by saibal - saibal@lorenzone.it\)
+	echo Backup of MySQL Databases \(powered by saibal - lorenzo.forti@gmail.com\)
 	echo ======================================================================
 	echo Result:
 	echo
@@ -551,7 +538,7 @@ then
 	fi
 
 	# se vengono rilevati errori nel servizio di posta
-	if [ $ERROR_NOMAIL_SERVICE -gt 0 ]
+	if [ "$ERROR_NOMAIL_SERVICE" -ne 0 ]
 	then
 
 		SEMAIL_KO="$LOGDATE | $SEMAIL_KO"
@@ -560,27 +547,8 @@ then
 		echo "$SEMAIL_KO" >> "$LOGS_DIR/$LOGS_FOLDER/$LOGS_FILENAME"
 	fi
 
-	# se c'è un problema FTP stampo il messaggio
-	if [ $ERROR_FTP_TRANSFER -gt 0 ]
-	then
-
-		FTPPUT_KO="$LOGDATE | $FTPPUT_KO"
-		FTPPUT_KO=${FTPPUT_KO//FTPERR/$ERROR_FTP_RESULT}
-
-		echo "$FTPPUT_KO"
-		echo "$FTPPUT_KO" >> "$LOGS_DIR/$LOGS_FOLDER/$LOGS_FILENAME"
-
-	elif [ "$FTP_TRANSF" = "y" ] && [ "$ERROR_FTP_TRANSFER" -eq "0" ]
-	then
-
-		FTPPUT_OK="$LOGDATE | $FTPPUT_OK"
-
-		echo "$FTPPUT_OK"
-		echo "$FTPPUT_OK" >> "$LOGS_DIR/$LOGS_FOLDER/$LOGS_FILENAME"
-	fi
-
 	# se tutti i dump sono OK stampo il messaggio relativo
-	if [ $ERROR_CONN_TODB -eq 0 ] && [ $ERROR_COUNT_SINGLE -eq 0 ] && [ $ERROR_COUNT_PERIODIC -eq 0 ]
+	if [ "$ERROR_DB_CONN" -eq 0 ] && [ "$ERROR_COUNT_SINGLE" -eq 0 ] && [ "$ERROR_COPY" -eq 0 ]
 	then
 
 		# replace di alcune variabili
@@ -592,18 +560,18 @@ then
 	# se i dump (last/mensile e/o giornaliero) fallisce stampo un determinato messaggio
 	else
 
-		if [ $ERROR_COUNT_SINGLE -gt 0 ] || [ $ERROR_COUNT_PERIODIC -gt 0 ]
+		if [ "$ERROR_COUNT_SINGLE" -ne 0 ] || [ "$ERROR_COPY" -ne 0 ]
 		then
 
 			BACKUP_KO="$LOGDATE | $BACKUP_KO"
-			BACKUP_KO=${BACKUP_KO//NOMEDB/$ERROR_DB}
+			BACKUP_KO=${BACKUP_KO//NOMEDB/$ERROR_RESULT}
 
 			echo "$BACKUP_KO"
 			echo "$BACKUP_KO" >> "$LOGS_DIR/$LOGS_FOLDER/$LOGS_FILENAME"
 		fi
 
 		# se c'è un problema di connessione al database stampo il messaggio
-		if [ $ERROR_CONN_TODB -gt 0 ]
+		if [ "$ERROR_DB_CONN" -ne 0 ]
 		then
 
 			CONNEC_KO="$LOGDATE | $CONNEC_KO"
@@ -613,6 +581,18 @@ then
 			echo "$CONNEC_KO" >> "$LOGS_DIR/$LOGS_FOLDER/$LOGS_FILENAME"
 		fi
 	fi
+
+	# se c'è un problema con la cancellazione del dump
+	if [ "$ERROR_REMOVE_DUMP" -ne 0 ]
+	then
+
+		DELETE_KO="$LOGDATE | $DELETE_KO"
+		DELETE_KO=${DELETE_KO//NOMEDB/$ERROR_RESULT}
+
+		echo "$DELETE_KO"
+		echo "$DELETE_KO" >> "$LOGS_DIR/$LOGS_FOLDER/$LOGS_FILENAME"
+	fi
+
 fi
 
 #=========================================
@@ -622,136 +602,44 @@ if [ $MAIL_RESULT -eq 1 ]
 then
 
 	# se viene scelto di ricevere una email anche quando le operazioni sono OK
-	if [ "$EMAIL_ONLYERRORS" = "n" ]
+	if [ "${EMAIL_ONLYERRORS,,}" = 'n' ]
 	then
 
 		# se tutti i dump sono OK invio il messaggio relativo
-		if [ $ERROR_CONN_TODB -eq 0 ] && [ $ERROR_COUNT_SINGLE -eq 0 ] && [ $ERROR_COUNT_PERIODIC -eq 0 ]
+		if [ "$ERROR_DB_CONN" -eq 0 ] && [ "$ERROR_COUNT_SINGLE" -eq 0 ] && [ "$ERROR_COPY" -eq 0 ]
 		then
-
-			#BACKUP_OK="$BACKUP_OK"
-
-			# se è attivo il trasferimento file e non ci sono errori aggiungo una parte di messaggio
-			if [ "$FTP_TRANSF" = 'y' ] && [ $ERROR_FTP_TRANSFER -eq 0 ]
-			then
-				BACKUP_OK="$BACKUP_OK | $FTPPUT_OK"
-			fi
 
 			send_mail "$EMAIL_SERVICE" "$EMAIL_RECIVER" "$EMAIL_SUBJECT" "$BACKUP_OK"
 		fi
 	fi
 
 	# invio email errore backup last, giornaliero o mensile
-	if [ $ERROR_COUNT_SINGLE -gt 0 ] || [ $ERROR_COUNT_PERIODIC -gt 0 ]
+	if [ $ERROR_COUNT_SINGLE -ne 0 ] || [ $ERROR_COPY -ne 0 ]
 	then
 
-		#BACKUP_KO="$BACKUP_KO"
-		BACKUP_KO=${BACKUP_KO//NOMEDB/$ERROR_DB}
+		BACKUP_KO=${BACKUP_KO//NOMEDB/$ERROR_RESULT}
 
 		send_mail "$EMAIL_SERVICE" "$EMAIL_RECIVER" "$EMAIL_SUBJECT" "$BACKUP_KO"
 	fi
 
-	# invio email errore connessioni al database
-	if [ $ERROR_CONN_TODB -gt 0 ]
+	# invio email errore cancellazione dump
+	if [ "$ERROR_REMOVE_DUMP" -ne 0 ]
 	then
 
-		#CONNEC_KO="$CONNEC_KO"
+		DELETE_KO=${DELETE_KO//NOMEDB/$ERROR_RESULT}
+
+		send_mail "$EMAIL_SERVICE" "$EMAIL_RECIVER" "$EMAIL_SUBJECT" "$DELETE_KO"
+	fi
+
+	# invio email errore connessioni al database
+	if [ "$ERROR_DB_CONN" -ne 0 ]
+	then
+
 		CONNEC_KO=${CONNEC_KO//NOMEDB/$ERROR_CONN_DB}
 
 		send_mail "$EMAIL_SERVICE" "$EMAIL_RECIVER" "$EMAIL_SUBJECT" "$CONNEC_KO"
 	fi
 
-	# invio email errore trasferimento file
-	if [ $ERROR_FTP_TRANSFER -gt 0 ]
-	then
-
-		#FTPPUT_KO="$FTPPUT_KO"
-		FTPPUT_KO=${FTPPUT_KO//FTPERR/$ERROR_FTP_RESULT}
-
-		send_mail "$EMAIL_SERVICE" "$EMAIL_RECIVER" "$EMAIL_SUBJECT" "$FTPPUT_KO"
-	fi
-fi
-
-#=========================================
-# FTP SECTION!!!
-#=========================================
-if [ "$FTP_TRANSF" = "y" ] && [ $CONN_ERROR -eq 0 ]
-then
-
-	if [ "$FTP_FILES" = "d" ]
-	then
-		FTP_FOLDER="$DAILY_FOLDER"
-		MFILENAME="*[${NDAY}]*]*.gz"
-	else
-		FTP_FOLDER="$LAST_FOLDER"
-		MFILENAME="*__last.gz"
-	fi
-
-	echo "
-			open $FTP_HOST
-			user $FTP_USER $FTP_PASSWORD
-			binary
-			lcd $OUT_DIR/$FTP_FOLDER
-			cd $FTP_REMOTEDIR
-			mdelete $MFILENAME
-			mput $MFILENAME
-			close
-			quit" | ftp -in -v > "$LOGS_DIR/$LOGS_FOLDER/$FTP_LOGS_FILENAME" 2>&1
-
-	# visto che le funzioni FTP fanno schifo cerco in qualche maniera di intercettare gli errori
-	# non connesso
-	FTP_TRAPERR=$(grep -i "Not connected." "$LOGS_DIR/$LOGS_FOLDER/$FTP_LOGS_FILENAME")
-	if [ $? -eq 0 ]
-	then
-		# aumento il contatore
-		ERROR_FTP_TRANSFER=$(( ERROR_FTP_TRANSFER + 1 ))
-		ERROR_FTP_RESULT="${ERROR_FTP_RESULT}Connessione al server FTP fallita | "
-	fi
-
-	# autenticazione fallita
-	FTP_TRAPERR=$(grep -i "Login authentication failed" "$LOGS_DIR/$LOGS_FOLDER/$FTP_LOGS_FILENAME")
-	if [ $? -eq 0 ]
-	then
-		# aumento il contatore
-		ERROR_FTP_TRANSFER=$(( ERROR_FTP_TRANSFER + 1 ))
-		ERROR_FTP_RESULT="${ERROR_FTP_RESULT}Autenticazione fallita | "
-	fi
-
-	# directory remota non trovata
-	FTP_TRAPERR=$(grep -i "change directory to $FTP_REMOTEDIR" "$LOGS_DIR/$LOGS_FOLDER/$FTP_LOGS_FILENAME")
-	if [ $? -eq 0 ]
-	then
-		# aumento il contatore
-		ERROR_FTP_TRANSFER=$(( ERROR_FTP_TRANSFER + 1 ))
-		ERROR_FTP_RESULT="${ERROR_FTP_RESULT}Directory remota non trovata | "
-	fi
-
-	# non trovo i file
-	FTP_TRAPERR=$(grep -i "no such" "$LOGS_DIR/$LOGS_FOLDER/$FTP_LOGS_FILENAME")
-	if [ $? -eq 0 ]
-	then
-		# aumento il contatore
-		ERROR_FTP_TRANSFER=$(( ERROR_FTP_TRANSFER + 1 ))
-		ERROR_FTP_RESULT="${ERROR_FTP_RESULT}File o directory non trovati | "
-	fi
-
-	# app chiusa
-	FTP_TRAPERR=$(grep -i "killed" "$LOGS_DIR/$LOGS_FOLDER/$FTP_LOGS_FILENAME")
-	if [ $? -eq 0 ]
-	then
-		# aumento il contatore
-		ERROR_FTP_TRANSFER=$(( ERROR_FTP_TRANSFER + 1 ))
-		ERROR_FTP_RESULT="${ERROR_FTP_RESULT}Processo di trasferimento abbandonato | "
-	fi
-
-	# spazio su disco esaurito (come me!! bwuahbwuah)
-	FTP_TRAPERR=$(grep -i "space" "$LOGS_DIR/$LOGS_FOLDER/$FTP_LOGS_FILENAME")
-	if [ $? -eq 0 ]
-	then
-		# aumento il contatore
-		ERROR_FTP_TRANSFER=$(( ERROR_FTP_TRANSFER + 1 ))
-		ERROR_FTP_RESULT="${ERROR_FTP_RESULT}Mancanza di spazio su disco"
-	fi
 fi
 
 exit 0
