@@ -11,6 +11,8 @@
 
 - Bash 4 or sup. required
 
+- Optional smtp softare as ssmtp
+
 ## Usage
 
 sh s_mysqldump.sh
