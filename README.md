@@ -36,5 +36,5 @@ Please make sure to update tests as appropriate.
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
-![](https://img.shields.io/badge/License-Copyright%20Engagigo%20srl%20--%20All%20Rights%20Reserved-red)
+![](https://img.shields.io/badge/License-Copyleft%20Saibal%20--%20All%20Rights%20Reserved-red)
 
